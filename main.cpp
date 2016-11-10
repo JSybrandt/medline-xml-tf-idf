@@ -1,21 +1,20 @@
-
-#include<iostream>
-#include<dirent.h>
-#include<vector>
-#include<unordered_map>
-#include<fstream>
-#include<regex>
-#include<algorithm>
-#include<functional>
-#include<cctype>
-#include<locale>
-#include<sstream>
+#include <iostream>
+#include <dirent.h>
+#include <vector>
+#include <unordered_map>
+#include <fstream>
+#include <regex>
+#include <algorithm>
+#include <functional>
+#include <cctype>
+#include <locale>
+#include <sstream>
 #include <sys/wait.h>
-#include"omp.h"
+#include "omp.h"
 #include "constants.h"
+#include "SubStrMap.h"
 
 using namespace std;
-
 
 // trim from start
 static inline std::string &ltrim(std::string &s) {
@@ -54,11 +53,22 @@ vector<string> getFilesInDir(string dirPath){
     return res;
 }
 
+string getResFile(){
+  time_t rawtime;
+  struct tm * timeinfo;
+  char buffer[80];
+
+  time (&rawtime);
+  timeinfo = localtime(&rawtime);
+
+  strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
+  return RESULTS_DIR + "/" +  str(buffer);
+}
+
 //Returns PMID, AbstractText pairs
 //second param are all the values we already have
-map<string,string> parseXML(string fileName, const unordered_map<string,string>& backup){
+void parseXML(string fileName, SubStrMap& ssm){
 
-    map<string,string> pmid2abstract;
     regex abstractRegex(ABSTRACT_REGEX,regex_constants::ECMAScript);
     regex pmidRegex(PMID_REGEX,regex_constants::ECMAScript);
     fstream fin(fileName, ios::in);
@@ -66,11 +76,18 @@ map<string,string> parseXML(string fileName, const unordered_map<string,string>&
     string lastFoundPMID = "NULL";
     string lastFoundAbstract = "";
 
+    fstream res(getResFile().c_str(),ios::out);
+
     while(getline(fin,line)){
         if(regex_search(line,pmidRegex)){
             lastFoundAbstract = trim(lastFoundAbstract);
-            if(backup.find(lastFoundPMID) == backup.end() && lastFoundPMID != "NULL" && lastFoundAbstract != ""){
-                pmid2abstract[lastFoundPMID] = lastFoundAbstract;
+            if(lastFoundPMID != "NULL" && lastFoundAbstract != ""){
+                res << lastFoundPMID << " ";
+                for(auto pair : ssm.query(lastFoundAbstract)){
+                  res << pair.first << " " << pair.second << " ";
+                }
+                res << endl;
+                //pmid2abstract[lastFoundPMID] = lastFoundAbstract;
             }
             lastFoundPMID = regex_replace(line,pmidRegex,"");
             lastFoundAbstract = "";
@@ -80,14 +97,19 @@ map<string,string> parseXML(string fileName, const unordered_map<string,string>&
         }
     }
     //Need extra check at end
-    if(lastFoundPMID != "NULL" && lastFoundAbstract != "")
-        pmid2abstract[lastFoundPMID] = lastFoundAbstract;
+    if(lastFoundPMID != "NULL" && lastFoundAbstract != ""){
+        res << lastFoundPMID << " ";
+        for(auto pair : ssm.query(lastFoundAbstract)){
+          res << pair.first << " " << pair.second << " ";
+        }
+        res << endl;
+    }
 
+    res.close();
     fin.close();
-    return pmid2abstract;
 }
 
-void parseMedline(unordered_map<string,string>& pmid2abstract, string dirPath, fstream& lout){
+void parseMedline(SubStrMap& ssm, string dirPath, fstream& lout){
     vector<string> xmlPaths = getFilesInDir(dirPath);
     int completeCount = 0;
 #pragma omp parallel  for
@@ -96,11 +118,7 @@ void parseMedline(unordered_map<string,string>& pmid2abstract, string dirPath, f
 #pragma omp critical (LOGGER)
       lout << "Parsing:" << xmlPaths[i] << endl;
 
-        map<string,string> tmp = parseXML(xmlPaths[i],pmid2abstract);
-
-        #pragma omp critical (INSERT_ABSTRACT)
-            pmid2abstract.insert(tmp.begin(),tmp.end());
-        }
+        parseXML(xmlPaths[i],ssm);
 
         #pragma omp critical (LOGGER)
         {
@@ -111,86 +129,32 @@ void parseMedline(unordered_map<string,string>& pmid2abstract, string dirPath, f
 
 }
 
-void loadOldCanon(unordered_map<string,string>& pmid2canon){
-    vector<string> xmlPaths = getFilesInDir(BACKUP_FILES_DIR);
-
-    #pragma omp parallel  for
-    for(int i = 0 ; i < xmlPaths.size();i++){
-        unordered_map<string,string> tmpMap;
-        fstream res(xmlPaths[i].c_str(), ios::in);
-        string line;
-        while(getline(res,line)){
-            stringstream s;
-            s << line;
-            string pmid;
-            s >> pmid;
-            string data = s.str();
-            tmpMap[pmid] = data;
-        }
-#pragma omp critical (LOAD_CANON_LOCK)
-        pmid2canon.insert(tmpMap.begin(),tmpMap.end());
-
-        res.close();
+void getWord2ID(SubStrMap& ssm){
+  int numRows;
+  string id;
+  fstream reader(KEYWORD_FILE, ios::in);
+  while(reader >> id >> numRows){
+    cin.ignore();
+    for(int i = 0 ; i < numRows; i++){
+      string line;
+      getline(reader,line);
+      ssm.add(line,id);
     }
+  }
+  reader.close();
 }
 
 int main(int argc, char** argv) {
 
     fstream lout(LOG_FILE,ios::out);
+
     lout<<"Started"<<endl;
 
-    unordered_map<string,string> pmid2abstract;
-    unordered_map<string,int> globalWordCount;
-    //pmid -> (keyword -> count)
-    unordered_map<string, unordered_map<string,int> > documentCounts;
-    vector<string> pmids;
-    unordered_map<string, int> multiWordFlag;
+    SubStrMap ssm;
+    getWord2ID(ssm);
 
-    parseMedline(pmid2abstract, MEDLINE_XML_DIR, lout);
+    parseMedline(ssm, MEDLINE_XML_DIR, lout);
 
-    fstream keyIn(KEYWORD_FILE, ios::in);
-    string line;
-    for(getline(keyIn, line)){
-      line = trim(line);
-      //if multi-word key
-      if(std::count(line.begin(),line.end(),' ') > 0){
-        string word = line.substring(0,line.find(' '));
-        if(multiWordFlag[word] < line.size())
-          multiWordFlag[word] = line.size();
-      }
-      globalWordCount[line] = 0;
-    }
-    keyIn.close();
-
-#pragma omp parallel for
-    for(auto abstractRecord : pmid2abstract){
-      unordered_map<string, int> docCount;
-      stringstream s;
-      s << abstractRecord.second;
-      string word;
-      while(s >> word){
-        //if we possibly have a multi-word
-        if(multiWordMap.find(word) != multiWordMap.end()){
-          string copy = s.str();
-          stringstream tmpStream;
-          tmpStream << copy;
-          string searchTerm = word;
-          string tmpString;
-          while(searchTerm.size() < multiWordFlag[word] && tmpStream >> tmpString){
-            searchTerm += " " + tmpString;
-            if(documentCounts.find(searchTerm) != documentCounts.end()){
-              documentCounts[searchTerm]++;
-            }
-
-          }
-        }
-        //if we have a keyword
-        if(documentCounts.find(word)!= documentCounts.end()){
-          documentCounts[word]++;
-          docCount[word]++;
-        }
-      }
-    }
 
     lout.close();
     return 0;

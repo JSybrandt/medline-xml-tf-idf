@@ -15,11 +15,9 @@ const std::string RES_FILES_DIR = RESULTS_DIR + "/res";
 const std::string BACKUP_FILES_DIR = RESULTS_DIR + "/backup";
 const std::string CANON_FILE = RESULTS_DIR + "/canon";
 const std::string LOG_FILE = HOME_DIR + "/log.txt";
-const std::string KEYWORD_FILE = HOME_DIR + "/keywords.txt";
-
 
 
 const std::string ABSTRACT_REGEX = "\\</?AbstractText.*?\\>";
 const std::string PMID_REGEX = "\\</?PMID.*?\\>";
 
-
+const std::string KEYWORD_FILE = HOME_DIR + "/keywordslist-short";
