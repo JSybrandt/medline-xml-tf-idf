@@ -62,7 +62,7 @@ string getResFile(){
   timeinfo = localtime(&rawtime);
 
   strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
-  return RESULTS_DIR + "/" +  string(buffer);
+  return RES_FILES_DIR + "/" +  string(buffer);
 }
 
 //Returns PMID, AbstractText pairs
@@ -129,16 +129,20 @@ void parseMedline(SubStrMap& ssm, string dirPath, fstream& lout){
 
 }
 
-void getWord2ID(SubStrMap& ssm){
+void getWord2ID(SubStrMap& ssm, fstream & lout){
   int numRows;
   string id;
   fstream reader(KEYWORD_FILE, ios::in);
   while(reader >> id >> numRows){
-    cin.ignore();
+    reader.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    string line;
+    lout << id << endl;
+    cout << id << endl;
     for(int i = 0 ; i < numRows; i++){
-      string line;
       getline(reader,line);
       ssm.add(line,id);
+      lout << line << endl;
+      cout << line << endl;
     }
   }
   reader.close();
@@ -147,11 +151,13 @@ void getWord2ID(SubStrMap& ssm){
 int main(int argc, char** argv) {
 
     fstream lout(LOG_FILE,ios::out);
-
+    cout << "STARTED" << endl;
     lout<<"Started"<<endl;
 
     SubStrMap ssm;
-    getWord2ID(ssm);
+    getWord2ID(ssm, lout);
+
+    lout << "Got Words" << endl;
 
     parseMedline(ssm, MEDLINE_XML_DIR, lout);
 
