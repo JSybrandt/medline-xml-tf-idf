@@ -20,4 +20,4 @@ const std::string LOG_FILE = HOME_DIR + "/log.txt";
 const std::string ABSTRACT_REGEX = "\\</?AbstractText.*?\\>";
 const std::string PMID_REGEX = "\\</?PMID.*?\\>";
 
-const std::string KEYWORD_FILE = HOME_DIR + "/keywordslist-short";
+const std::string KEYWORD_FILE = HOME_DIR + "/keywordslist";

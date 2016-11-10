@@ -62,7 +62,7 @@ string getResFile(){
   timeinfo = localtime(&rawtime);
 
   strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
-  return RES_FILES_DIR + "/" +  string(buffer);
+  return RES_FILES_DIR + "/" +  string(buffer) + "::" + to_string(rand() % 100);
 }
 
 //Returns PMID, AbstractText pairs
@@ -82,11 +82,14 @@ void parseXML(string fileName, SubStrMap& ssm){
         if(regex_search(line,pmidRegex)){
             lastFoundAbstract = trim(lastFoundAbstract);
             if(lastFoundPMID != "NULL" && lastFoundAbstract != ""){
-                res << lastFoundPMID << " ";
-                for(auto pair : ssm.query(lastFoundAbstract)){
-                  res << pair.first << " " << pair.second << " ";
+                unordered_map<string,int> id2Count = ssm.query(lastFoundAbstract);
+                if(id2Count.size()>0){
+                  res << lastFoundPMID << " ";
+                  for(auto pair : id2Count){
+                    res << pair.first << " " << pair.second << " ";
+                  }
+                  res << endl;
                 }
-                res << endl;
                 //pmid2abstract[lastFoundPMID] = lastFoundAbstract;
             }
             lastFoundPMID = regex_replace(line,pmidRegex,"");
@@ -98,11 +101,14 @@ void parseXML(string fileName, SubStrMap& ssm){
     }
     //Need extra check at end
     if(lastFoundPMID != "NULL" && lastFoundAbstract != ""){
+      unordered_map<string,int> id2Count = ssm.query(lastFoundAbstract);
+      if(id2Count.size()>0){
         res << lastFoundPMID << " ";
-        for(auto pair : ssm.query(lastFoundAbstract)){
+        for(auto pair : id2Count){
           res << pair.first << " " << pair.second << " ";
         }
         res << endl;
+      }
     }
 
     res.close();
@@ -137,12 +143,9 @@ void getWord2ID(SubStrMap& ssm, fstream & lout){
     reader.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     string line;
     lout << id << endl;
-    cout << id << endl;
     for(int i = 0 ; i < numRows; i++){
       getline(reader,line);
       ssm.add(line,id);
-      lout << line << endl;
-      cout << line << endl;
     }
   }
   reader.close();
@@ -151,7 +154,6 @@ void getWord2ID(SubStrMap& ssm, fstream & lout){
 int main(int argc, char** argv) {
 
     fstream lout(LOG_FILE,ios::out);
-    cout << "STARTED" << endl;
     lout<<"Started"<<endl;
 
     SubStrMap ssm;
