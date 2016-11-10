@@ -2,13 +2,16 @@
 
 SubStrMap::SubStrMap()
 {
+  root = shared_ptr<LetterNode>(&rootNode);
 }
 
 void SubStrMap::add(string key, string value)
 {
-	LetterNode* currNode = &(this->root);
+	shared_ptr<LetterNode> currNode = this->root;
 	for (char c : key) {
-		currNode = &(currNode->children[c]);
+    if(currNode->children.find(c) == currNode->children.end())
+      currNode->children[c] = shared_ptr<LetterNode>(new LetterNode);
+		currNode = currNode->children[c];
 	}
 	currNode->ids.insert(value);
 }
@@ -19,12 +22,12 @@ unordered_map<string,int> SubStrMap::query(string queryString)
 
 	while (queryString.size() > 0) {
 		set<string> ids;
-		LetterNode* currNode = &(this->root);
+	  shared_ptr<LetterNode> currNode = this->root;
 		for (char c : queryString) {
 			//if currNode has a valid child
 			if (currNode->children.find(c) != currNode->children.end()) {
 				//traverse
-				currNode = &(currNode->children[c]);
+				currNode = currNode->children[c];
 				ids.insert(currNode->ids.begin(), currNode->ids.end());
 			}
 			else {//no match
@@ -38,24 +41,3 @@ unordered_map<string,int> SubStrMap::query(string queryString)
 	return res;
 }
 
-bool SubStrMap::contains(string substr)
-{
-	return (findNode(substr) != nullptr);
-}
-
-SubStrMap::LetterNode* SubStrMap::findNode(string substr)
-{
-	LetterNode* currNode = &(this->root);
-	for (char c : substr) {
-		//if currNode has a valid child
-		if (currNode->children.find(c) != currNode->children.end()) {
-			//traverse
-			currNode = &(currNode->children[c]);
-		}
-		else {//no match
-			return nullptr;
-		}
-
-	}
-	return currNode;
-}

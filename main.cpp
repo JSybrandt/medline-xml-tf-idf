@@ -62,7 +62,7 @@ string getResFile(){
   timeinfo = localtime(&rawtime);
 
   strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
-  return RESULTS_DIR + "/" +  str(buffer);
+  return RESULTS_DIR + "/" +  string(buffer);
 }
 
 //Returns PMID, AbstractText pairs
