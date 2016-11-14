@@ -1,54 +1,74 @@
 #include "SubStrMap.h"
+#include<iostream>
 
 SubStrMap::SubStrMap()
 {
-  root = shared_ptr<LetterNode>(&rootNode);
+  root = shared_ptr<WordNode>(new WordNode);
 }
 
 void SubStrMap::add(string key, string value)
 {
-	shared_ptr<LetterNode> currNode = this->root;
-	for (char c : key) {
-    c = tolower(c);
-    if(currNode->children.find(c) == currNode->children.end())
-      currNode->children[c] = shared_ptr<LetterNode>(new LetterNode);
-		currNode = currNode->children[c];
+	value = toLowerStripPunct(value);
+
+	shared_ptr<WordNode> currNode = this->root;
+	stringstream s;
+	s << key;
+	string word;
+	
+	while (s >> word) {
+		if (currNode->contains(word))
+			currNode = traverseWord(currNode, word);
+		else {
+			currNode->children[word] = shared_ptr<WordNode>(new WordNode);
+			currNode = currNode->children[word];
+		}
 	}
 	currNode->ids.insert(value);
 }
 
 unordered_map<string,int> SubStrMap::query(string queryString)
 {
-	unordered_map<string,int> res;
+	queryString = toLowerStripPunct(queryString);
 
-	while (queryString.size() > 0) {
-		set<string> ids;
-	  shared_ptr<LetterNode> currNode = this->root;
-		for (char c : queryString) {
-      c = tolower(c);
-			//if currNode has a valid child
-			if (currNode->children.find(c) != currNode->children.end()) {
-				//traverse
-				currNode = currNode->children[c];
-				ids.insert(currNode->ids.begin(), currNode->ids.end());
+	unordered_map<string, int> res;
+	stringstream s;
+	s << queryString << " $"; //add terminator
+	shared_ptr<WordNode> currNode = root;
+	shared_ptr<WordNode> nextNode;
+	string word;
+
+	while (s >> word) {
+		nextNode = traverseWord(currNode, word);
+		if (nextNode == nullptr) {
+			if (currNode != root) {
+				for (string s : currNode->ids) {
+					res[s]++;
+				}
 			}
-			else {//no match
-				break;
-			}
+			nextNode = traverseWord(root,word);
+			if (nextNode == nullptr) nextNode = root;
 		}
-		for (string id : ids)
-			res[id]++;
-		queryString = queryString.substr(1);
+		currNode = nextNode;
 	}
+
 	return res;
 }
 
-shared_ptr<LetterNode> SubStrMap::traverseWord(shared_ptr<LetterNode> source, string word){
-  if(source != nullptr){
-    for(char w : word){
-      source = source->children.find(w);
-    }
-  }else{
-    return shared_ptr<LetterNode>();
-  }
+shared_ptr<WordNode> SubStrMap::traverseWord(shared_ptr<WordNode> source, string word){
+	if(source != nullptr && source->contains(word))
+		return source->children[word]; 
+    else
+		return shared_ptr<WordNode>();
+}
+
+string SubStrMap::toLowerStripPunct(string str)
+{
+	for (char& c : str) {
+		if (ispunct(c))
+			c = ' ';
+		else
+			c = tolower(c);
+
+	}
+	return str;
 }
