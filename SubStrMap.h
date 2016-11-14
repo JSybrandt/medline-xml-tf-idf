@@ -26,4 +26,5 @@ class SubStrMap {
   private:
   LetterNode rootNode;
   shared_ptr<LetterNode> root;
+  shared_ptr<LetterNode> traverseWord(shared_ptr<LetterNode> source, string word);
 };
